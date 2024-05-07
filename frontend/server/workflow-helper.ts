@@ -18,6 +18,9 @@ import { getK8sSecret, getArgoWorkflow, getPodLogs } from './k8s-helper';
 import { createMinioClient, MinioRequestConfig, getObjectStream } from './minio-helper';
 
 export interface PartialArgoWorkflow {
+  metadata: {
+    name?: string;
+  }
   status: {
     nodes?: ArgoWorkflowStatusNode;
     artifactRepositoryRef?: {
@@ -182,6 +185,7 @@ export async function getPodLogsMinioRequestConfigfromWorkflow(
     throw new Error('Unable to find S3 artifact info from workflow status.');
   }
 
+  var nodeName = workflow.metadata.name + '-' + extractIDAfterLastDash(podName)
   const { host, port } = urlSplit(s3Artifact.endpoint, s3Artifact.insecure);
   const { accessKeySecret, secretKeySecret } = s3Artifact;
   const { accessKey, secretKey } = await getMinioClientSecrets(s3Artifact);
@@ -195,7 +199,7 @@ export async function getPodLogsMinioRequestConfigfromWorkflow(
   return {
     bucket: s3Artifact.bucket,
     client,
-    key: workflow.status.nodes?.[podName]?.outputs?.artifacts?.[0]?.s3?.key || '',
+    key: workflow.status.nodes?.[nodeName]?.outputs?.artifacts?.[0]?.s3?.key || '',
   };
 }
 
@@ -230,8 +234,20 @@ function urlSplit(uri: string, insecure: boolean) {
  * Infers workflow name from pod name.
  * @param podName name of the pod.
  */
-function workflowNameFromPodName(podName: string) {
+function workflowNameFromPodName(podName: string): string {
   const chunks = podName.split('-');
-  chunks.pop();
-  return chunks.join('-');
+  const systemIndex = chunks.indexOf('system');
+  if (systemIndex === -1) {
+    throw new Error('The "-system" part was not found in the pod name.');
+  }
+  return chunks.slice(0, systemIndex).join('-');
+}
+
+/**
+ * Extract last part of string ID for pod name 
+ * @param podName name of the pod.
+ */
+function extractIDAfterLastDash(podName: string): string {
+  const lastIndex = podName.lastIndexOf('-');
+  return podName.slice(lastIndex + 1);
 }

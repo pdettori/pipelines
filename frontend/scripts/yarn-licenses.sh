@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -ex
+#set -ex
 
 # 1. Install yarn
 npm install -D yarn
